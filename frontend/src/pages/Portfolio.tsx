@@ -1,33 +1,136 @@
+import { useEffect, useState } from "react";
+
+interface PortfolioItem {
+  id: number;
+  symbol: string;
+  quantity: string;
+}
+
 export default function Portfolio() {
-  const holdings = [
-    { stock: "TCS", shares: 10, value: "₹42,000" },
-    { stock: "INFY", shares: 20, value: "₹35,000" },
-    { stock: "RELIANCE", shares: 5, value: "₹18,000" },
-  ];
+  const [symbol, setSymbol] = useState("");
+  const [quantity, setQuantity] = useState("");
+
+  const [portfolio, setPortfolio] = useState<
+    PortfolioItem[]
+  >([]);
+
+  const loadPortfolio = async () => {
+    const response = await fetch(
+      "http://localhost:5000/api/portfolio"
+    );
+
+    const data = await response.json();
+
+    setPortfolio(data);
+  };
+
+  useEffect(() => {
+    loadPortfolio();
+  }, []);
+
+  const addStock = async () => {
+    if (!symbol || !quantity) {
+      alert("Please fill all fields");
+      return;
+    }
+
+    await fetch(
+      "http://localhost:5000/api/portfolio",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type":
+            "application/json",
+        },
+        body: JSON.stringify({
+          symbol,
+          quantity,
+        }),
+      }
+    );
+
+    setSymbol("");
+    setQuantity("");
+
+    loadPortfolio();
+  };
+
+  const deleteStock = async (
+    id: number
+  ) => {
+    await fetch(
+      `http://localhost:5000/api/portfolio/${id}`,
+      {
+        method: "DELETE",
+      }
+    );
+
+    loadPortfolio();
+  };
 
   return (
     <div>
-      <h1>Portfolio</h1>
+      <h1>Portfolio Management</h1>
 
-      <table className="stock-table">
-        <thead>
-          <tr>
-            <th>Stock</th>
-            <th>Shares</th>
-            <th>Value</th>
-          </tr>
-        </thead>
+      <div
+        style={{
+          marginBottom: "20px",
+        }}
+      >
+        <input
+          type="text"
+          placeholder="Stock Symbol"
+          value={symbol}
+          onChange={(e) =>
+            setSymbol(e.target.value)
+          }
+        />
 
-        <tbody>
-          {holdings.map((item) => (
-            <tr key={item.stock}>
-              <td>{item.stock}</td>
-              <td>{item.shares}</td>
-              <td>{item.value}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+        <input
+          type="number"
+          placeholder="Quantity"
+          value={quantity}
+          onChange={(e) =>
+            setQuantity(e.target.value)
+          }
+          style={{
+            marginLeft: "10px",
+          }}
+        />
+
+        <button
+          onClick={addStock}
+          style={{
+            marginLeft: "10px",
+          }}
+        >
+          Add Stock
+        </button>
+      </div>
+
+      <div className="cards">
+        {portfolio.map((item) => (
+          <div
+            key={item.id}
+            className="card"
+          >
+            <h3>{item.symbol}</h3>
+
+            <p>
+              Quantity:{" "}
+              {item.quantity}
+            </p>
+
+            <button
+              onClick={() =>
+                deleteStock(item.id)
+              }
+            >
+              Delete
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

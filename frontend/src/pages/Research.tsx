@@ -1,30 +1,62 @@
+import { useState } from "react";
+
 export default function Research() {
+  const [query, setQuery] = useState("");
+  const [analysis, setAnalysis] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const analyzeStock = async () => {
+    if (!query) return;
+
+    setLoading(true);
+
+    try {
+      const response = await fetch(
+        `http://localhost:5000/api/analyze?stock=${query}`
+      );
+
+      const data = await response.json();
+
+      setAnalysis(data.analysis);
+    } catch (error) {
+      console.error(error);
+      setAnalysis("Failed to fetch analysis.");
+    }
+
+    setLoading(false);
+  };
+
   return (
     <div>
       <h1>AI Research Assistant</h1>
 
-      <textarea
-        rows={6}
-        style={{ width: "100%" }}
-        placeholder="Ask AlphaMind AI..."
+      <input
+        type="text"
+        placeholder="Enter Stock Symbol"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        style={{
+          padding: "10px",
+          width: "300px",
+          marginRight: "10px",
+        }}
       />
 
-      <button style={{ marginTop: "10px" }}>
+      <button onClick={analyzeStock}>
         Analyze
       </button>
 
-      <div className="card" style={{ marginTop: "20px" }}>
-        <h3>AI Analysis</h3>
+      {loading && <p>Analyzing...</p>}
 
-        <p>
-          TCS shows strong revenue growth,
-          healthy margins, and low debt.
-        </p>
-
-        <p>
-          Long-term outlook: Positive
-        </p>
-      </div>
+      {analysis && (
+        <div
+          className="card"
+          style={{ marginTop: "20px" }}
+        >
+          <h2>AI Analysis</h2>
+          <p>{analysis}</p>
+        </div>
+      )}
     </div>
   );
 }
