@@ -1,14 +1,12 @@
 const express = require("express");
 const cors = require("cors");
-
+const jwt = require("jsonwebtoken");
+const bcrypt = require("bcrypt");
 const app = express();
+const pool = require("./db/db");
 
 app.use(cors());
 app.use(express.json());
-
-/* In-Memory Storage */
-const users = [];
-const portfolio = [];
 
 /* Health Check */
 app.get("/api/health", (req, res) => {
@@ -18,92 +16,173 @@ app.get("/api/health", (req, res) => {
 });
 
 /* Register */
-app.post("/api/register", (req, res) => {
-  const { name, email, password } = req.body;
+app.post("/api/register", async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
 
-  const existingUser = users.find(
-    (u) => u.email === email
-  );
+    const hashedPassword =
+      await bcrypt.hash(password, 10);
 
-  if (existingUser) {
-    return res.status(400).json({
+    await pool.query(
+      `
+      INSERT INTO users(name,email,password)
+      VALUES($1,$2,$3)
+      `,
+      [name, email, hashedPassword]
+    );
+
+    res.json({
+      success: true,
+      message: "Registration Successful",
+    });
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
       success: false,
-      message: "User already exists",
+      message: "Registration Failed",
     });
   }
-
-  users.push({
-    name,
-    email,
-    password,
-  });
-
-  res.json({
-    success: true,
-    message: "Registration Successful",
-  });
 });
 
 /* Login */
-app.post("/api/login", (req, res) => {
-  const { email, password } = req.body;
+app.post("/api/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
 
-  const user = users.find(
-    (u) =>
-      u.email === email &&
-      u.password === password
-  );
+    const result = await pool.query(
+      `
+      SELECT *
+      FROM users
+      WHERE email = $1
+      `,
+      [email]
+    );
 
-  if (!user) {
-    return res.status(401).json({
+    if (result.rows.length === 0) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid Credentials",
+      });
+    }
+
+    const user = result.rows[0];
+
+    const validPassword = await bcrypt.compare(
+      password,
+      user.password
+    );
+
+    if (!validPassword) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid Credentials",
+      });
+    }
+
+    const token = jwt.sign(
+      {
+        id: user.id,
+        email: user.email,
+      },
+      "alphamind_secret_key",
+      {
+        expiresIn: "24h",
+      }
+    );
+
+    res.json({
+      success: true,
+      token,
+      user,
+    });
+  } catch (error) {
+    console.error("LOGIN ERROR:", error);
+
+    res.status(500).json({
       success: false,
-      message: "Invalid credentials",
+      message: "Login Failed",
     });
   }
-
-  res.json({
-    success: true,
-    token: "alphamind-demo-token",
-    user,
-  });
 });
 
 /* Portfolio APIs */
 
-app.get("/api/portfolio", (req, res) => {
-  res.json(portfolio);
-});
+/* Portfolio APIs - PostgreSQL */
 
-app.post("/api/portfolio", (req, res) => {
-  const { symbol, quantity } = req.body;
+app.get("/api/portfolio/:email", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `
+      SELECT *
+      FROM portfolio
+      WHERE user_email = $1
+      ORDER BY id DESC
+      `,
+      [req.params.email]
+    );
 
-  portfolio.push({
-    id: Date.now(),
-    symbol,
-    quantity,
-  });
+    res.json(result.rows);
+  } catch (error) {
+    console.error(error);
 
-  res.json({
-    success: true,
-    message: "Stock Added",
-  });
-});
-
-app.delete("/api/portfolio/:id", (req, res) => {
-  const id = Number(req.params.id);
-
-  const index = portfolio.findIndex(
-    (item) => item.id === id
-  );
-
-  if (index !== -1) {
-    portfolio.splice(index, 1);
+    res.status(500).json({
+      success: false,
+      message: "Failed to load portfolio",
+    });
   }
+});
 
-  res.json({
-    success: true,
-    message: "Stock Deleted",
-  });
+app.post("/api/portfolio", async (req, res) => {
+  try {
+    const { symbol, quantity, email } = req.body;
+
+    const result = await pool.query(
+      `
+      INSERT INTO portfolio(symbol, quantity, user_email)
+      VALUES($1,$2,$3)
+      RETURNING *
+      `,
+      [symbol, quantity, email]
+    );
+
+    res.json({
+      success: true,
+      message: "Stock Added",
+      stock: result.rows[0],
+    });
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to add stock",
+    });
+  }
+});
+
+app.delete("/api/portfolio/:id", async (req, res) => {
+  try {
+    await pool.query(
+      `
+      DELETE FROM portfolio
+      WHERE id = $1
+      `,
+      [req.params.id]
+    );
+
+    res.json({
+      success: true,
+      message: "Stock Deleted",
+    });
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to delete stock",
+    });
+  }
 });
 
 /* Stock List */

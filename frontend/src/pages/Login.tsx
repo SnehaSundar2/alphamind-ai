@@ -28,6 +28,16 @@ export default function Login() {
       if (data.token) {
         localStorage.setItem("token", data.token);
 
+        localStorage.setItem(
+          "email",
+          data.user.email
+        );
+
+        localStorage.setItem(
+          "name",
+          data.user.name
+        );
+
         alert("Login Successful");
 
         window.location.href = "/dashboard";
