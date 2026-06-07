@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+const email = localStorage.getItem("email");
 
 interface PortfolioItem {
   id: number;
@@ -15,8 +16,13 @@ export default function Portfolio() {
   >([]);
 
   const loadPortfolio = async () => {
-    const response = await fetch(
-      "http://localhost:5000/api/portfolio"
+   const response = await fetch(
+      `http://localhost:5000/api/portfolio/${email}`,
+      {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+      }
     );
 
     const data = await response.json();
@@ -28,32 +34,33 @@ export default function Portfolio() {
     loadPortfolio();
   }, []);
 
-  const addStock = async () => {
-    if (!symbol || !quantity) {
-      alert("Please fill all fields");
-      return;
-    }
-
-    await fetch(
-      "http://localhost:5000/api/portfolio",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type":
-            "application/json",
-        },
-        body: JSON.stringify({
-          symbol,
-          quantity,
-        }),
+const addStock = async () => {
+      if (!symbol || !quantity) {
+        alert("Please fill all fields");
+        return;
       }
-    );
 
-    setSymbol("");
-    setQuantity("");
+      await fetch(
+        "http://localhost:5000/api/portfolio",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+          body: JSON.stringify({
+            symbol,
+            quantity,
+            email: localStorage.getItem("email"),
+          }),
+        }
+      );
 
-    loadPortfolio();
-  };
+      setSymbol("");
+      setQuantity("");
+
+      loadPortfolio();
+    };
 
   const deleteStock = async (
     id: number
@@ -62,6 +69,9 @@ export default function Portfolio() {
       `http://localhost:5000/api/portfolio/${id}`,
       {
         method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
       }
     );
 
